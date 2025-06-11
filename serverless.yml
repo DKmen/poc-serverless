@@ -1,0 +1,99 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: localdkmen001
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: poc-serverless
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: poc-serverless
+
+package:
+  individually: true
+  exclude:
+    - cred.csv
+    - .git/**
+    - .gitignore
+    - README.md
+    - .DS_Store
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: dev
+  environment:
+    TASKS_TABLE: tasks
+  iam:
+    role:
+      statements:
+        # DynamoDB permissions    
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TASKS_TABLE}"
+        
+        # Minimal permission for HTTPS outbound calls
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: "*"
+
+functions:
+  createTask:
+    handler: handler.createTaskHandler
+    events:
+      - http:
+          path: task
+          method: post
+          cors: true
+  
+  getTask:
+    handler: handler.getTaskHandler
+    events:
+      - http:
+          path: task/{id}
+          method: get
+          cors: true
+
+  listTasks:
+    handler: handler.listTasksHandler
+    events:
+      - http:
+          path: tasks
+          method: get
+          cors: true
+
+  deleteTask:
+    handler: handler.deleteTaskHandler
+    events:
+      - http:
+          path: task/{id}
+          method: delete
+          cors: true
+
+  updateTask:
+    handler: handler.updateTaskHandler
+    events:
+      - http:
+          path: task/{id}
+          method: put
+          cors: true
+
+resources:
+  Resources:
+    TasksTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: tasks
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
