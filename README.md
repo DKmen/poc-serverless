@@ -30,6 +30,7 @@ A modern, scalable serverless REST API built with AWS Lambda, DynamoDB, and the 
 | Method | Endpoint       | Description                    | Parameters                    |
 |--------|----------------|--------------------------------|-------------------------------|
 | POST   | `/task`        | Create a new task              | `title`, `description`        |
+| POST   | `/tasks/bulk`  | Create multiple tasks at once  | `tasks` array (max 25)       |
 | GET    | `/task/{id}`   | Get a specific task by ID      | `id` (path parameter)         |
 | PUT    | `/task/{id}`   | Update an existing task        | `id`, `title`, `description`  |
 | DELETE | `/task/{id}`   | Delete a task                  | `id` (path parameter)         |
@@ -53,6 +54,7 @@ A modern, scalable serverless REST API built with AWS Lambda, DynamoDB, and the 
 - **Validation**: Zod
 - **Build Tool**: esbuild
 - **Development**: serverless-offline
+- **Environment Management**: serverless-dotenv-plugin
 
 ## 📦 Installation
 
@@ -67,7 +69,17 @@ A modern, scalable serverless REST API built with AWS Lambda, DynamoDB, and the 
    npm install
    ```
 
-3. **Configure AWS credentials**
+3. **Set up environment variables**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit the .env file with your values
+   # TASKS_TABLE=tasks
+   # STAGE=dev
+   ```
+
+4. **Configure AWS credentials**
    ```bash
    aws configure
    # Or set environment variables:
@@ -81,10 +93,10 @@ A modern, scalable serverless REST API built with AWS Lambda, DynamoDB, and the 
 ### Deploy to AWS
 
 ```bash
-# Deploy to development stage
+# Deploy to development stage (uses STAGE from .env or defaults to 'dev')
 npx serverless deploy
 
-# Deploy to specific stage
+# Deploy to specific stage (overrides environment variable)
 npx serverless deploy --stage prod
 
 # Deploy individual function
@@ -111,6 +123,29 @@ curl -X POST http://localhost:3000/task \
   -d '{
     "title": "Learn Serverless",
     "description": "Build a serverless task management API"
+  }'
+```
+
+### Create Multiple Tasks (Bulk)
+
+```bash
+curl -X POST http://localhost:3000/tasks/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tasks": [
+      {
+        "title": "Learn Serverless",
+        "description": "Build a serverless task management API"
+      },
+      {
+        "title": "Deploy to AWS",
+        "description": "Deploy the API to AWS Lambda"
+      },
+      {
+        "title": "Add Documentation",
+        "description": "Write comprehensive API documentation"
+      }
+    ]
   }'
 ```
 
@@ -152,10 +187,12 @@ curl -X DELETE http://localhost:3000/task/1704657600000
 poc-serverless/
 ├── handlers/                 # Lambda function handlers
 │   ├── createTask.ts         # Create new task
+│   ├── bulkCreateTasks.ts    # Create multiple tasks at once
 │   ├── getTask.ts           # Get task by ID
 │   ├── listTasks.ts         # List tasks with pagination
 │   ├── updateTask.ts        # Update existing task
 │   └── deleteTask.ts        # Delete task
+├── .env.example             # Environment variables template
 ├── handler.ts               # Export all handlers
 ├── serverless.yml           # Serverless configuration
 ├── package.json             # Dependencies and scripts
@@ -167,15 +204,19 @@ poc-serverless/
 
 ### Environment Variables
 
-The application uses the following environment variables:
+The application uses environment variables for configuration:
 
-- `TASKS_TABLE`: DynamoDB table name for tasks (set to "tasks")
+- `TASKS_TABLE`: DynamoDB table name for tasks (e.g., "tasks")
+- `STAGE`: Deployment stage (e.g., "dev", "prod")
+
+These can be set in a `.env` file (see `.env.example` for reference) or as system environment variables.
 
 ### DynamoDB Tables
 
 The application automatically creates the following DynamoDB table:
 
 **Tasks Table**
+- Table Name: Uses `TASKS_TABLE` environment variable
 - Primary Key: `id` (String)
 - Billing Mode: Pay-per-request (PAY_PER_REQUEST)
 - Fields: `id`, `title`, `description`, `createdAt`, `updatedAt`
@@ -184,7 +225,7 @@ The application automatically creates the following DynamoDB table:
 
 The Lambda functions have minimal IAM permissions:
 
-- **DynamoDB**: Query, Scan, GetItem, PutItem, UpdateItem, DeleteItem (for tasks table)
+- **DynamoDB**: Query, Scan, GetItem, PutItem, UpdateItem, DeleteItem, BatchWriteItem (for tasks table)
 - **CloudWatch**: Logs creation and writing
 
 ## 🧪 Data Validation
@@ -196,6 +237,19 @@ The API uses Zod schemas for request validation:
 {
   title: string (required, min length: 1),
   description: string (required, min length: 1)
+}
+```
+
+### Bulk Task Creation Schema
+```typescript
+{
+  tasks: [
+    {
+      title: string (required, min length: 1),
+      description: string (required, min length: 1)
+    }
+    // ... up to 25 tasks maximum
+  ] (required, min: 1 task, max: 25 tasks)
 }
 ```
 
@@ -220,6 +274,28 @@ The API uses Zod schemas for request validation:
     "description": "Build a serverless task management API",
     "createdAt": "2024-01-08T00:00:00.000Z"
   }
+}
+```
+
+### Bulk Create Success Response
+```json
+{
+  "message": "Tasks created successfully",
+  "createdCount": 3,
+  "tasks": [
+    {
+      "id": "1704657600000-0",
+      "title": "Learn Serverless",
+      "description": "Build a serverless task management API",
+      "createdAt": "2024-01-08T00:00:00.000Z"
+    },
+    {
+      "id": "1704657600000-1",
+      "title": "Deploy to AWS",
+      "description": "Deploy the API to AWS Lambda",
+      "createdAt": "2024-01-08T00:00:00.000Z"
+    }
+  ]
 }
 ```
 
@@ -261,10 +337,11 @@ The API provides comprehensive error handling:
 
 ## 🔄 Development Workflow
 
-1. **Make changes** to handlers or configuration
-2. **Test locally** using `serverless offline`
-3. **Deploy to development** stage for testing
-4. **Deploy to production** when ready
+1. **Set up environment**: Copy `.env.example` to `.env` and configure your variables
+2. **Make changes** to handlers or configuration
+3. **Test locally** using `serverless offline`
+4. **Deploy to development** stage for testing
+5. **Deploy to production** when ready
 
 ## 📈 Performance Considerations
 
@@ -272,6 +349,7 @@ The API provides comprehensive error handling:
 - **Lambda**: Individual packaging for faster cold starts
 - **esbuild**: Fast TypeScript compilation and bundling
 - **Pagination**: Efficient data retrieval for large datasets
+- **Environment Variables**: Dynamic configuration using serverless-dotenv-plugin
 
 ## 🤝 Contributing
 
