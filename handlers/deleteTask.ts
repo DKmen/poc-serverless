@@ -1,7 +1,9 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -16,12 +18,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         }
 
         // First check if task exists
-        const getResult = await dynamoDb
-            .get({
-                TableName: TABLE_NAME,
-                Key: { id },
-            })
-            .promise();
+        const getResult = await dynamoDb.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { id },
+        }));
 
         if (!getResult.Item) {
             return {
@@ -31,12 +31,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         }
 
         // Delete the task
-        await dynamoDb
-            .delete({
-                TableName: TABLE_NAME,
-                Key: { id },
-            })
-            .promise();
+        await dynamoDb.send(new DeleteCommand({
+            TableName: TABLE_NAME,
+            Key: { id },
+        }));
 
         return {
             statusCode: 200,

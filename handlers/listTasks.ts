@@ -1,7 +1,9 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand, ScanCommandInput } from '@aws-sdk/lib-dynamodb';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -18,7 +20,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         const pageSize = parseInt(limit);
 
         // Build scan parameters
-        const scanParams: DynamoDB.DocumentClient.ScanInput = {
+        const scanParams: ScanCommandInput = {
             TableName: TABLE_NAME,
             Limit: pageSize,
         };
@@ -47,14 +49,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         }
 
         // Execute scan
-        const result = await dynamoDb.scan(scanParams).promise();
+        const result = await dynamoDb.send(new ScanCommand(scanParams));
         let tasks = result.Items || [];
 
         // Sort tasks in memory (since DynamoDB scan doesn't guarantee order)
-        tasks.sort((a, b) => {
+        tasks.sort((a: any, b: any) => {
             const aValue = a[sortBy] || '';
             const bValue = b[sortBy] || '';
-            
+
             if (sortOrder === 'asc') {
                 return aValue > bValue ? 1 : -1;
             } else {
@@ -63,7 +65,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         });
 
         // Get total count for metadata (separate scan)
-        const countParams: DynamoDB.DocumentClient.ScanInput = {
+        const countParams: ScanCommandInput = {
             TableName: TABLE_NAME,
             Select: 'COUNT'
         };
@@ -78,7 +80,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
         }
 
-        const countResult = await dynamoDb.scan(countParams).promise();
+        const countResult = await dynamoDb.send(new ScanCommand(countParams));
         const totalItems = countResult.Count || 0;
 
         const response: any = {
@@ -87,7 +89,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
                 limit: pageSize,
                 totalItems: totalItems,
                 hasNextPage: !!result.LastEvaluatedKey,
-                nextToken: result.LastEvaluatedKey 
+                nextToken: result.LastEvaluatedKey
                     ? encodeURIComponent(JSON.stringify(result.LastEvaluatedKey))
                     : null
             },

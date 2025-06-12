@@ -1,7 +1,9 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -15,12 +17,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
         }
 
-        const result = await dynamoDb
-            .get({
-                TableName: TABLE_NAME,
-                Key: { id },
-            })
-            .promise();
+        const result = await dynamoDb.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { id },
+        }));
 
         if (!result.Item) {
             return {

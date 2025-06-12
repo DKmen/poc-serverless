@@ -1,8 +1,10 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { z } from 'zod';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 // Zod schema for single task validation
@@ -47,7 +49,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             };
 
             batchRequests.push(
-                dynamoDb.batchWrite({ RequestItems: requestItems }).promise()
+                dynamoDb.send(new BatchWriteCommand({ RequestItems: requestItems }))
             );
         }
 
@@ -55,9 +57,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         const results = await Promise.all(batchRequests);
 
         // Check for unprocessed items
-        const unprocessedItems = results.flatMap(result => 
-            result.UnprocessedItems && result.UnprocessedItems[TABLE_NAME] 
-                ? result.UnprocessedItems[TABLE_NAME] 
+        const unprocessedItems = results.flatMap((result: any) =>
+            result.UnprocessedItems && result.UnprocessedItems[TABLE_NAME]
+                ? result.UnprocessedItems[TABLE_NAME]
                 : []
         );
 
@@ -82,29 +84,29 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         if (error instanceof z.ZodError) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ 
-                    message: 'Validation failed', 
-                    errors: error.errors 
+                body: JSON.stringify({
+                    message: 'Validation failed',
+                    errors: error.errors
                 }),
             };
         }
-        
+
         // Handle DynamoDB specific errors
         if (error.code === 'ValidationException') {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ 
-                    message: 'DynamoDB validation error', 
-                    error: error.message 
+                body: JSON.stringify({
+                    message: 'DynamoDB validation error',
+                    error: error.message
                 }),
             };
         }
 
         return {
             statusCode: 500,
-            body: JSON.stringify({ 
-                message: 'Internal server error', 
-                error: error.message 
+            body: JSON.stringify({
+                message: 'Internal server error',
+                error: error.message
             }),
         };
     }

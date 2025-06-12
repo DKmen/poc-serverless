@@ -1,8 +1,10 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { z } from 'zod';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 // Zod schema for task validation
@@ -25,12 +27,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             createdAt: new Date().toISOString(),
         };
 
-        await dynamoDb
-            .put({
-                TableName: TABLE_NAME,
-                Item: item,
-            })
-            .promise();
+        await dynamoDb.send(new PutCommand({
+            TableName: TABLE_NAME,
+            Item: item,
+        }));
 
         return {
             statusCode: 201,

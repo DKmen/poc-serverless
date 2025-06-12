@@ -1,8 +1,10 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { z } from 'zod';
 
-const dynamoDb = new DynamoDB.DocumentClient();
+const client = new DynamoDBClient({});
+const dynamoDb = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.TASKS_TABLE || 'Tasks';
 
 // Zod schema for task update validation
@@ -30,12 +32,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         const updateData = updateTaskSchema.parse(body);
 
         // First check if task exists
-        const getResult = await dynamoDb
-            .get({
-                TableName: TABLE_NAME,
-                Key: { id },
-            })
-            .promise();
+        const getResult = await dynamoDb.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { id },
+        }));
 
         if (!getResult.Item) {
             return {
@@ -75,7 +75,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             ReturnValues: 'ALL_NEW' as const,
         };
 
-        const result = await dynamoDb.update(updateParams).promise();
+        const result = await dynamoDb.send(new UpdateCommand(updateParams));
 
         return {
             statusCode: 200,
