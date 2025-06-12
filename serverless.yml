@@ -90,7 +90,7 @@ functions:
     events:
       - http:
           path: task/{id}
-          method: put
+          method: patch
           cors: true
 
 resources:

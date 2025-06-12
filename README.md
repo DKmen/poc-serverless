@@ -32,7 +32,7 @@ A modern, scalable serverless REST API built with AWS Lambda, DynamoDB, and the 
 | POST   | `/task`        | Create a new task              | `title`, `description`        |
 | POST   | `/tasks/bulk`  | Create multiple tasks at once  | `tasks` array (max 25)       |
 | GET    | `/task/{id}`   | Get a specific task by ID      | `id` (path parameter)         |
-| PUT    | `/task/{id}`   | Update an existing task        | `id`, `title`, `description`  |
+| PATCH  | `/task/{id}`   | Update an existing task        | `id`, `title`, `description`  |
 | DELETE | `/task/{id}`   | Delete a task                  | `id` (path parameter)         |
 | GET    | `/tasks`       | List all tasks with pagination | Query parameters (see below)  |
 
@@ -158,7 +158,7 @@ curl http://localhost:3000/task/1704657600000
 ### Update a Task
 
 ```bash
-curl -X PUT http://localhost:3000/task/1704657600000 \
+curl -X PATCH http://localhost:3000/task/1704657600000 \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Master Serverless Architecture"
